@@ -1,0 +1,12 @@
+.local/
+.env
+__pycache__/
+frontend/node_modules/
+frontend/dist/
+server/web/
+
+artifacts/
+.hallmark/
+dist/
+.venv/
+.DS_Store

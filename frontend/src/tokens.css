@@ -1,0 +1,62 @@
+/* Exact color and shadow tokens from the user-owned Kuma status page. */
+:root {
+  color-scheme: light;
+  --color-bg: #f6f7f9;
+  --color-surface: #f6f6f6;
+  --color-white: #fff;
+  --color-text: #212529;
+  --color-name: #111;
+  --color-muted: #6c757d;
+  --color-green: #008000;
+  --color-green-bg: #e8f5e9;
+  --color-red: #dc3545;
+  --color-red-bg: #f8d7da;
+  --color-amber: #f0ad4e;
+  --color-amber-text: #9a600a;
+  --color-amber-bg: #fff3cd;
+  --color-gray: #a4a9ad;
+  --color-gray-bg: #e9ecef;
+  --color-blue: #0d6efd;
+  --color-line: #dee2e6;
+  --color-overlay: rgba(0, 0, 0, 0.3);
+  --color-tag: #20a77c;
+  --color-tag-text: #fff;
+  --bg-gradient: linear-gradient(180deg, #f6f6f6, #f8f8f8);
+  --shadow-main:
+    8px 8px 15px 0 rgba(55, 99, 170, 0.1), -8px -8px 15px 0 #fff,
+    inset 0 4px 15px 0 rgba(255, 255, 255, 0.5);
+  --shadow-small:
+    5px 5px 12px 0 rgba(55, 99, 170, 0.1), -5px -5px 12px 0 #f6f7f9,
+    inset 0 4px 10px 0 rgba(255, 255, 255, 0.5);
+  --shadow-inset: inset -4px -4px 12px #f1f1f1, inset 4px 4px 12px #e2e2e2;
+  --font-body:
+    system-ui, "segoe ui", Roboto, "helvetica neue", Arial, "noto sans",
+    sans-serif, "apple color emoji", "segoe ui emoji", "segoe ui symbol",
+    "noto color emoji";
+  --font-display: var(--font-body);
+  --font-mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #222;
+  --color-surface: #242424;
+  --color-white: #2d2d2d;
+  --color-text: #e9ecef;
+  --color-name: #e9ecef;
+  --color-muted: #adb5bd;
+  --color-green: #00c800;
+  --color-green-bg: #203d25;
+  --color-red: #dc3545;
+  --color-red-bg: #40292c;
+  --color-gray-bg: #303030;
+  --color-line: #424242;
+  --color-blue: #6ea8fe;
+  --bg-gradient: linear-gradient(180deg, #242424, #222);
+  --shadow-main:
+    8px 8px 15px 0 rgba(0, 0, 0, 0.3), -8px -8px 15px 0 #242424,
+    inset 0 4px 15px 0 #222;
+  --shadow-small:
+    5px 5px 12px 0 rgba(0, 0, 0, 0.25), -5px -5px 12px 0 #242424,
+    inset 0 4px 10px 0 #222;
+  --shadow-inset: inset -4px -4px 12px #0d0d0d, inset 4px 4px 12px #1a1a1a;
+}

@@ -1,0 +1,12 @@
+.local
+.env
+.git
+frontend/node_modules
+frontend/dist
+server/web
+**/__pycache__
+
+artifacts
+.hallmark
+dist
+docs
