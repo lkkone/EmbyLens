@@ -6,6 +6,12 @@ services:
     ports:
       - "18792:8080"
     environment:
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      ALL_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      all_proxy: ""
       ADMIN_USERNAME: ${ADMIN_USERNAME:?Set ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD}
       COOKIE_SECURE: "true"
