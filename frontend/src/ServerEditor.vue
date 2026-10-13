@@ -95,15 +95,12 @@ defineEmits(["save", "delete", "export", "detail", "reveal"]);
               form.user_agent =
                 form.client_name === 'auto'
                   ? form.user_agent
-                  : form.client_name === 'EmbyLens'
-                    ? 'EmbyLens/0.1.0'
-                    : form.client_name
+                  : form.client_name
             "
           >
             <option value="Forward">Forward</option>
             <option value="Infuse">Infuse</option>
             <option value="ReX">ReX</option>
-            <option value="EmbyLens">EmbyLens</option>
             <option v-if="form.client_name === 'auto'" value="auto">
               沿用已验证格式
             </option>
