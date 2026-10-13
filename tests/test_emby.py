@@ -173,6 +173,18 @@ class CollectionTests(unittest.TestCase):
             emby.validate_config(config, config)["tokens"], config["tokens"]
         )
 
+    def test_cloudflare_block_has_specific_diagnostic(self):
+        blocked = emby.urllib.error.HTTPError(
+            "https://example.com",
+            403,
+            "blocked",
+            {"Server": "cloudflare", "Content-Type": "text/html; charset=UTF-8"},
+            None,
+        )
+        self.assertIn("Cloudflare", emby.error_label(blocked))
+        blocked.headers["Content-Type"] = "application/json"
+        self.assertEqual(emby.error_label(blocked), "访问受限（HTTP 403）")
+
     def test_auto_identity_does_not_retry_invalid_password(self):
         config = emby.validate_config(
             {

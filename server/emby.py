@@ -304,6 +304,13 @@ class Client:
 
 def error_label(exc):
     if isinstance(exc, urllib.error.HTTPError):
+        if (
+            exc.code == 403
+            and exc.headers
+            and exc.headers.get("Server", "").lower() == "cloudflare"
+            and "text/html" in exc.headers.get("Content-Type", "").lower()
+        ):
+            return "Cloudflare 拦截（HTTP 403），请检查采集出口或访问规则"
         return {
             401: "认证失败，保存配置后重试",
             403: "访问受限（HTTP 403）",
