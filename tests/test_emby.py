@@ -166,6 +166,12 @@ class CollectionTests(unittest.TestCase):
         cached = emby.Client(config["primary_url"], config, "test")
         self.assertEqual(cached.client_name, "Infuse")
         self.assertEqual(cached.token, "t")
+        del config["client_name"]
+        legacy = emby.Client(config["primary_url"], config, "test")
+        self.assertEqual(legacy.client_name, "Infuse")
+        self.assertEqual(
+            emby.validate_config(config, config)["tokens"], config["tokens"]
+        )
 
     def test_auto_identity_does_not_retry_invalid_password(self):
         config = emby.validate_config(

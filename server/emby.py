@@ -90,7 +90,9 @@ def validate_config(body, old=None):
         ord(c) < 32 or ord(c) > 126 for c in result["user_agent"]
     ):
         raise ValueError("请求标识应为 200 字符以内的 ASCII 文本")
-    client_name = body.get("client_name", old.get("client_name", "Forward"))
+    client_name = body.get(
+        "client_name", old.get("client_name", "auto" if old else "Forward")
+    )
     if (
         not isinstance(client_name, str)
         or not client_name
@@ -112,7 +114,7 @@ def validate_config(body, old=None):
     result["tokens"] = (
         {k: v for k, v in old.get("tokens", {}).items() if k in seen}
         if all(
-            result[k] == old.get(k)
+            result[k] == old.get(k, "auto" if k == "client_name" else None)
             for k in ("username", "password", "user_agent", "client_name")
         )
         else {}
@@ -136,7 +138,7 @@ class Client:
         self.config = config
         self.sid = sid
         cached = config.setdefault("tokens", {}).get(base, {})
-        configured = config.get("client_name", "Forward")
+        configured = config.get("client_name", "auto")
         self.automatic = (
             configured == "auto"
         )  # legacy profiles reuse only, never cycle identities

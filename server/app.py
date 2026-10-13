@@ -169,6 +169,7 @@ def serialize(db, row, now, private=False):
         config = {
             **config,
             "display_name": config.get("display_name", ""),
+            "client_name": config.get("client_name", "auto"),
             "secondary_lines": secondary_lines(config),
         }
         config.pop("secondary_url", None)
