@@ -335,6 +335,9 @@ class Client:
         dates = []
         for item in data.get("Items", []):
             value = item.get("UserData", {}).get("LastPlayedDate")
+            if not value and item.get("Id"):
+                detail = self.request("/Users/" + self.uid + "/Items/" + item["Id"])
+                value = detail.get("UserData", {}).get("LastPlayedDate")
             if value:
                 parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
                 if parsed.tzinfo is None:
@@ -519,11 +522,12 @@ def collect(config, old, sid):
         if any(i.get("Id") != info.get("Id") for _, i in clients[1:]):
             result.update(state="error", error="主副线路指向不同服务器")
             return result
-        if (
-            config.get("keepalive_days", 0)
-            and time.time() - old.get("playback_checked_at", 0) >= 86400
+        if config.get("keepalive_days", 0) and (
+            old.get("playback_query_version") != 2
+            or time.time() - old.get("playback_checked_at", 0) >= 86400
         ):
             result["playback_checked_at"] = time.time()
+            result["playback_query_version"] = 2
             try:
                 played = client.last_played()
                 previous_played = old.get("last_played_at")

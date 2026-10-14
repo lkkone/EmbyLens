@@ -47,12 +47,15 @@ defineEmits(["save", "delete", "export", "detail", "reveal"]);
           >分组<input v-model="form.group" maxlength="200" required
         /></label>
       </div>
+      <div class="form-grid">
       <label
         >备注<input
           v-model="form.notes"
           maxlength="1000"
           placeholder="可选，仅在管理后台显示"
       /></label>
+<label class="keepalive-setting">保号天数<input v-model.number="form.keepalive_days" type="number" min="1" max="3650" step="1" placeholder="留空关闭" /></label>
+      </div>
       <h3>连接线路</h3>
       <div class="route-heading"><span>主线路</span><label class="proxy-toggle"><input v-model="form.primary_use_proxy" type="checkbox" role="switch" aria-label="主线路使用代理" />使用代理</label></div>
       <label
@@ -183,7 +186,7 @@ defineEmits(["save", "delete", "export", "detail", "reveal"]);
           @click="$emit('delete')"
         >
           删除服务器</button
-        ><label class="keepalive-setting">保号天数<input v-model.number="form.keepalive_days" type="number" min="1" max="3650" step="1" placeholder="留空关闭" /></label><button class="btn primary" :disabled="busy">
+        ><button class="btn primary" :disabled="busy">
           {{ busy ? "正在保存…" : server ? "保存" : "接入并采集" }}
         </button>
       </div>

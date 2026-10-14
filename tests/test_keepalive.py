@@ -62,6 +62,21 @@ class KeepaliveTests(unittest.TestCase):
         self.assertEqual(calls[0][1]["Limit"], 1)
         self.assertNotIn("IsPlayed", calls[0][1])
 
+    def test_list_missing_date_uses_single_item_details(self):
+        client = object.__new__(emby.Client)
+        client.uid = "my-user"
+        calls = []
+
+        def request(path, params=None):
+            calls.append(path)
+            if params is not None:
+                return {"Items": [{"Id": "item", "UserData": {"PlayCount": 0}}]}
+            return {"UserData": {"LastPlayedDate": "2026-01-01T12:00:00Z"}}
+
+        client.request = request
+        self.assertIsNotNone(client.last_played())
+        self.assertEqual(calls, ["/Users/my-user/Items", "/Users/my-user/Items/item"])
+
     def test_playback_query_only_once_per_day(self):
         calls = []
 

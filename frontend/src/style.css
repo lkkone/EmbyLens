@@ -1376,13 +1376,4 @@ dialog.security-dialog {
 .keepalive-badge.warning { color: var(--color-amber); }
 .keepalive-badge.error { color: var(--color-red); }
 .emby-device:has(.keepalive-badge) { padding-top: 40px; }
-.keepalive-setting { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.keepalive-setting input { width: 105px; margin: 0; }
-@media (max-width: 575px) {
-  .keepalive-setting { flex-wrap: wrap; gap: 4px; }
-  .keepalive-setting input { width: 90px; }
-}
-@media (max-width: 575px) {
-  .actions:has(.keepalive-setting) { flex-wrap: wrap; }
-  .keepalive-setting { order: -1; flex-basis: 100%; justify-content: center; }
-}
+.keepalive-setting { min-width: 0; }
