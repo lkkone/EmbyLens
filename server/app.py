@@ -141,6 +141,16 @@ def serialize(db, row, now, private=False):
                 "delay_ms": worst["delay"] if worst else None,
             }
         )
+    # The final bar represents now; earlier buckets retain their actual history.
+    history[-1]["state"] = state
+    history[-1]["delay_ms"] = next(
+        (
+            line.get("delay_ms")
+            for line in snapshot.get("lines", [])
+            if line.get("label") == "主线路"
+        ),
+        None,
+    )
     public_fields = (
         "name",
         "state",
@@ -539,9 +549,57 @@ class Handler(BaseHTTPRequestHandler):
                         )
                         else {}
                     )
-                    for field in ("line_control", "next_check_at", "stats_retry_at"):
-                        snapshot.pop(field, None)
-                    snapshot["refresh_stats"] = True
+
+                    def routes(value):
+                        return [
+                            (
+                                value["primary_url"],
+                                value.get("primary_use_proxy", False),
+                                "主线路",
+                            )
+                        ] + [
+                            (line["url"], line.get("use_proxy", False), line["name"])
+                            for line in secondary_lines(value)
+                        ]
+
+                    previous_routes = routes(previous)
+                    current_routes = routes(config)
+                    measured = {
+                        (url, proxy): line
+                        for (url, proxy, _), line in zip(
+                            previous_routes, snapshot.get("lines", [])
+                        )
+                    }
+                    if snapshot.get("lines"):
+                        snapshot["lines"] = [
+                            {
+                                **measured.get((url, proxy), {"state": "pending"}),
+                                "label": label,
+                            }
+                            for url, proxy, label in current_routes
+                        ]
+                    connection_changed = not snapshot.get("checked_at") or [
+                        r[:2] for r in previous_routes
+                    ] != [r[:2] for r in current_routes]
+                    if connection_changed:
+                        for field in (
+                            "line_control",
+                            "next_check_at",
+                            "stats_retry_at",
+                        ):
+                            snapshot.pop(field, None)
+                        snapshot["refresh_stats"] = True
+                        states = [line["state"] for line in snapshot.get("lines", [])]
+                        if states:
+                            snapshot["state"] = (
+                                "pending"
+                                if "pending" in states
+                                else (
+                                    "healthy"
+                                    if all(state == "healthy" for state in states)
+                                    else "slow" if "healthy" in states else "error"
+                                )
+                            )
                     db.execute(
                         "UPDATE servers SET group_name=?,notes=?,config=?,snapshot=?,generation=generation+1 WHERE id=?",
                         (

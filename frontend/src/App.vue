@@ -157,13 +157,24 @@ async function api(path, method = "GET", data) {
   }
   return b;
 }
+let refreshSequence = 0;
+let appliedSequence = 0;
+const updates = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("embylens-config") : null;
+if (updates) updates.onmessage = () => refresh();
+function refreshVisible() { if (!document.hidden) refresh(); }
 async function refresh() {
+  const sequence = ++refreshSequence;
   try {
-    servers.value = (
+    const result = (
       await api(admin && authenticated.value ? "/api/servers" : "/api/status")
     ).servers;
+    if (sequence < appliedSequence) return;
+    appliedSequence = sequence;
+    servers.value = result;
     failure.value = "";
   } catch (e) {
+    if (sequence < appliedSequence) return;
+    appliedSequence = sequence;
     failure.value = e.message;
   } finally {
     loading.value = false;
@@ -225,10 +236,11 @@ async function save() {
         ),
       },
     );
+    updates?.postMessage("saved");
     editingId.value = r.id || editingId.value;
     form.value.password = "";
     await refresh();
-    notice.value = "已保存，正在采集服务器信息";
+    notice.value = "已保存";
     setTimeout(() => (notice.value = ""), 4000);
   } catch (e) {
     formError.value = e.message;
@@ -241,6 +253,7 @@ async function remove() {
   busy.value = true;
   try {
     await api(`/api/servers/${editingId.value}`, "DELETE", {});
+    updates?.postMessage("deleted");
     await refresh();
     edit(servers.value[0]);
   } catch (e) {
@@ -277,9 +290,16 @@ onMounted(async () => {
   }
   await refresh();
   if (admin && authenticated.value) edit(servers.value[0]);
-  timer = setInterval(refresh, 15000);
+  timer = setInterval(refresh, 5000);
+  document.addEventListener("visibilitychange", refreshVisible);
+  window.addEventListener("focus", refreshVisible);
 });
-onUnmounted(() => clearInterval(timer));
+onUnmounted(() => {
+  clearInterval(timer);
+  updates?.close();
+  document.removeEventListener("visibilitychange", refreshVisible);
+  window.removeEventListener("focus", refreshVisible);
+});
 </script>
 <template>
   <main v-if="admin && !authenticated" class="login panel">

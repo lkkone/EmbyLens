@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -92,6 +93,65 @@ class APITests(unittest.TestCase):
             self.assertEqual(snapshot["name"], "Legacy name")
             self.assertEqual(snapshot["stats"]["total"], 123)
             self.assertTrue(snapshot["refresh_stats"])
+        self.req("/api/servers/" + sid, "DELETE", {}, cookie)
+
+    def test_metadata_save_is_immediate_and_current_history_matches(self):
+        _, _, headers = self.req(
+            "/api/login", "POST", {"username": "test", "password": "test-only-password"}
+        )
+        cookie = headers["Set-Cookie"].split(";", 1)[0]
+        body = {
+            "primary_url": "https://main.example.com",
+            "username": "u",
+            "password": "p",
+            "secondary_lines": [
+                {"name": "Old backup", "url": "https://backup.example.com"}
+            ],
+        }
+        _, created, _ = self.req("/api/servers", "POST", body, cookie)
+        sid = created["id"]
+        now = time.time()
+        bucket = int(now // 300) * 300
+        with app.connect() as db:
+            db.execute(
+                "UPDATE servers SET snapshot=? WHERE id=?",
+                (
+                    json.dumps(
+                        {
+                            "name": "Server",
+                            "state": "healthy",
+                            "checked_at": now,
+                            "next_check_at": now + 300,
+                            "stats": {"total": 123},
+                            "lines": [
+                                {"label": "主线路", "state": "healthy"},
+                                {"label": "Old backup", "state": "healthy"},
+                            ],
+                        }
+                    ),
+                    sid,
+                ),
+            )
+            for at in [bucket - 10, bucket + 0.1]:
+                db.execute(
+                    "INSERT INTO samples VALUES(?,?,?,?)", (sid, at, "slow", 100)
+                )
+        body["secondary_lines"][0]["name"] = "New backup"
+        self.assertEqual(self.req("/api/servers/" + sid, "PATCH", body, cookie)[0], 200)
+        _, public, _ = self.req("/api/status")
+        server = next(s for s in public["servers"] if s["id"] == sid)
+        self.assertEqual(server["lines"][1]["label"], "New backup")
+        self.assertEqual(server["checked_at"], now)
+        self.assertEqual(server["history"][-1]["state"], "healthy")
+        self.assertEqual(server["history"][-2]["state"], "slow")
+        with app.connect() as db:
+            snapshot = json.loads(
+                db.execute(
+                    "SELECT snapshot FROM servers WHERE id=?", (sid,)
+                ).fetchone()["snapshot"]
+            )
+            self.assertNotIn("refresh_stats", snapshot)
+            self.assertEqual(snapshot["next_check_at"], now + 300)
         self.req("/api/servers/" + sid, "DELETE", {}, cookie)
 
     def test_auth_crud_and_credential_redaction(self):
