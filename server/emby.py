@@ -1,6 +1,8 @@
 """User-scoped Emby collection. Credentials never enter public snapshots."""
 
+import base64
 import json
+import os
 import random
 import ssl
 import time
@@ -9,7 +11,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import unquote, urlencode, urlsplit
 
 CST = timezone(timedelta(hours=8))
 
@@ -24,8 +26,60 @@ def secondary_lines(config):
     )
 
 
+class ProxyConfigurationError(ValueError):
+    pass
+
+
+def outbound_proxy_url():
+    proxy = os.environ.get("OUTBOUND_PROXY_URL", "").strip()
+    try:
+        parsed = urlsplit(proxy)
+        valid = (
+            parsed.scheme == "http"
+            and parsed.hostname
+            and (parsed.port is None or 0 < parsed.port <= 65535)
+            and parsed.path in ("", "/")
+            and not parsed.query
+            and not parsed.fragment
+        )
+    except ValueError:
+        valid = False
+    if not proxy:
+        raise ProxyConfigurationError("尚未配置宿主机代理地址 OUTBOUND_PROXY_URL")
+    if not valid:
+        raise ProxyConfigurationError(
+            "代理地址应为有效的 HTTP 代理地址（可使用 mixed 端口，支持 HTTPS 目标）"
+        )
+    return proxy
+
+
+class RouteProxyHandler(urllib.request.ProxyHandler):
+    """An explicit route choice must not be bypassed by ambient NO_PROXY."""
+
+    def proxy_open(self, req, proxy, protocol):
+        parsed = urlsplit(proxy)
+        if parsed.username is not None:
+            credentials = (
+                unquote(parsed.username) + ":" + unquote(parsed.password or "")
+            )
+            token = base64.b64encode(credentials.encode()).decode()
+            req.add_header("Proxy-Authorization", "Basic " + token)
+        original = req.type
+        req.set_proxy(parsed.netloc.rsplit("@", 1)[-1], parsed.scheme)
+        if original == parsed.scheme or original == "https":
+            return None
+        return self.parent.open(req, timeout=req.timeout)
+
+
 def validate_config(body, old=None):
     old = old or {}
+
+    def proxy_flag(value):
+        if type(value) is not bool:
+            raise ValueError("代理开关格式错误")
+        if value:
+            outbound_proxy_url()
+        return value
 
     def url(value, required=True):
         if not isinstance(value, str):
@@ -55,6 +109,9 @@ def validate_config(body, old=None):
     if not isinstance(name, str) or len(name) > 200:
         raise ValueError("服务器名称应在 200 字符以内")
     result["display_name"] = name.strip()
+    result["primary_use_proxy"] = proxy_flag(
+        body.get("primary_use_proxy", old.get("primary_use_proxy", False))
+    )
     lines = (
         secondary_lines(body)
         if "secondary_lines" in body or "secondary_url" in body
@@ -80,7 +137,12 @@ def validate_config(body, old=None):
             raise ValueError("线路地址不能重复")
         seen.add(address)
         result["secondary_lines"].append(
-            {"name": label.strip(), "url": address, "slot": slot}
+            {
+                "name": label.strip(),
+                "url": address,
+                "slot": slot,
+                "use_proxy": proxy_flag(line.get("use_proxy", False)),
+            }
         )
     agent = body.get("user_agent", old.get("user_agent", "Forward"))
     if not isinstance(agent, str):
@@ -157,7 +219,18 @@ class Client:
             else None
         )
         self.last_request_at = 0
+        lines = secondary_lines(config)
+        use_proxy = (
+            config.get("primary_use_proxy", False)
+            if base == config["primary_url"]
+            else next(
+                (line.get("use_proxy", False) for line in lines if line["url"] == base),
+                False,
+            )
+        )
+        proxy = outbound_proxy_url() if use_proxy else ""
         self.opener = urllib.request.build_opener(
+            RouteProxyHandler({"http": proxy, "https": proxy} if proxy else {}),
             NoRedirect,
             urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=ca)),
         )
@@ -303,6 +376,8 @@ class Client:
 
 
 def error_label(exc):
+    if isinstance(exc, ProxyConfigurationError):
+        return str(exc)
     if isinstance(exc, urllib.error.HTTPError):
         if (
             exc.code == 403
@@ -356,9 +431,9 @@ def collect(config, old, sid):
                 "line", {"label": label, "state": "error", "error": "等待重试"}
             )
             return {**prior, "label": label}, None, None, control
-        client = Client(base, config, sid)
         t = time.monotonic()
         try:
+            client = Client(base, config, sid)
             info = client.probe()
             elapsed = round((time.monotonic() - t) * 1000)
             config.setdefault("tokens", {})[base] = {

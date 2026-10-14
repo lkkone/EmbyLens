@@ -1,0 +1,5 @@
+# Linux Docker Engine only; Docker Desktop already resolves this hostname.
+services:
+  embylens:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

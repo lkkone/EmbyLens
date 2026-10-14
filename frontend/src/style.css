@@ -1341,3 +1341,11 @@ dialog.security-dialog {
   margin: 10px 0 0;
   min-height: 0;
 }
+
+.route-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 13px; font-weight: 600; }
+.route-heading h4 { margin: 0; }
+.editor .proxy-toggle { display: flex; flex-direction: row; align-items: center; gap: 7px; margin: 0; font-size: 12px; font-weight: 400; cursor: pointer; }
+.proxy-toggle input { appearance: none; width: 30px; height: 18px; min-height: 0; padding: 2px; margin: 0; border-radius: 20px; background: #b4b8c0; border: none; cursor: pointer; }
+.proxy-toggle input::before { content: ""; display: block; width: 14px; height: 14px; border-radius: 50%; background: white; transition: transform .15s; }
+.proxy-toggle input:checked { background: #258457; }
+.proxy-toggle input:checked::before { transform: translateX(12px); }

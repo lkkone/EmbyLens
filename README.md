@@ -64,3 +64,5 @@ npm --prefix frontend run build
 ```
 
 Docker 构建同时验证后端测试，镜像健康检查访问 `/healthz`；GitHub Actions 执行静态检查、测试、前端与镜像构建。测试使用临时数据库，不访问真实 Emby 服务。
+
+每条线路可独立启用宿主机代理，配置方式见 [线路代理说明](docs/route-proxy.md)。

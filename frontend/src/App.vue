@@ -26,6 +26,7 @@ const lineSlots = (lines = []) =>
   Array.from({ length: 2 }, (_, slot) => ({
     name: "",
     url: "",
+    use_proxy: false,
     ...lines.find((line, index) => (line.slot ?? index) === slot),
     slot,
   }));
@@ -89,6 +90,7 @@ async function unlock() {
 const blank = () => ({
   group: "我的 Emby",
   primary_url: "",
+  primary_use_proxy: false,
   display_name: "",
   secondary_lines: lineSlots(),
   user_agent: "Forward",

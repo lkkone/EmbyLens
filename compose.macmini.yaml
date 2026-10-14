@@ -6,6 +6,7 @@ services:
     ports:
       - "18792:8080"
     environment:
+      OUTBOUND_PROXY_URL: ${OUTBOUND_PROXY_URL:-}
       HTTP_PROXY: ""
       HTTPS_PROXY: ""
       ALL_PROXY: ""

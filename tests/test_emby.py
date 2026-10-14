@@ -1,8 +1,11 @@
 import json
+import os
 import sys
+import threading
 import time
 import unittest
 from datetime import datetime, timedelta
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
@@ -55,7 +58,14 @@ class CollectionTests(unittest.TestCase):
         old = emby.validate_config(base)
         self.assertEqual(
             old["secondary_lines"],
-            [{"name": "CF 线路", "url": "https://cf.example.com", "slot": 0}],
+            [
+                {
+                    "name": "CF 线路",
+                    "url": "https://cf.example.com",
+                    "slot": 0,
+                    "use_proxy": False,
+                }
+            ],
         )
         config = emby.validate_config(
             {
@@ -172,6 +182,83 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual(
             emby.validate_config(config, config)["tokens"], config["tokens"]
         )
+
+    def test_route_proxy_selection_and_validation(self):
+        base = {
+            "primary_url": "https://main.example.com",
+            "username": "u",
+            "password": "p",
+        }
+        with patch.dict(os.environ, {"OUTBOUND_PROXY_URL": ""}):
+            with self.assertRaises(emby.ProxyConfigurationError):
+                emby.validate_config({**base, "primary_use_proxy": True})
+        with patch.dict(os.environ, {"OUTBOUND_PROXY_URL": "http://localhost:7897"}):
+            cfg = emby.validate_config(
+                {
+                    **base,
+                    "secondary_lines": [
+                        {
+                            "name": "backup",
+                            "url": "https://backup.example.com",
+                            "use_proxy": True,
+                        }
+                    ],
+                }
+            )
+            self.assertFalse(cfg["primary_use_proxy"])
+            self.assertTrue(cfg["secondary_lines"][0]["use_proxy"])
+            for value in ["yes", 1, None]:
+                with self.assertRaises(ValueError):
+                    emby.validate_config({**base, "primary_use_proxy": value})
+        with patch.dict(os.environ, {"OUTBOUND_PROXY_URL": "socks5://localhost:7897"}):
+            with self.assertRaises(emby.ProxyConfigurationError):
+                emby.validate_config({**base, "primary_use_proxy": True})
+
+    def test_explicit_proxy_transport_and_direct_ignore_environment(self):
+        paths = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                paths.append(self.path)
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"ok":true}')
+
+            def log_message(self, *args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        address = "http://127.0.0.1:" + str(server.server_port)
+        cfg = {"primary_url": "http://unreachable.invalid", "primary_use_proxy": True}
+        try:
+            with patch.dict(
+                os.environ,
+                {"OUTBOUND_PROXY_URL": address, "NO_PROXY": "*", "no_proxy": "*"},
+            ):
+                self.assertTrue(
+                    emby.Client(cfg["primary_url"], cfg, "test").request("/test")["ok"]
+                )
+                self.assertEqual(paths[-1], "http://unreachable.invalid/emby/test")
+            cfg = {"primary_url": address}
+            with patch.dict(
+                os.environ,
+                {
+                    "http_proxy": "http://127.0.0.1:1",
+                    "HTTP_PROXY": "http://127.0.0.1:1",
+                    "NO_PROXY": "",
+                    "no_proxy": "",
+                },
+            ):
+                self.assertTrue(
+                    emby.Client(address, cfg, "test").request("/direct")["ok"]
+                )
+                self.assertEqual(paths[-1], "/emby/direct")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
 
     def test_cloudflare_block_has_specific_diagnostic(self):
         blocked = emby.urllib.error.HTTPError(

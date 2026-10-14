@@ -54,9 +54,11 @@ defineEmits(["save", "delete", "export", "detail", "reveal"]);
           placeholder="可选，仅在管理后台显示"
       /></label>
       <h3>连接线路</h3>
+      <div class="route-heading"><span>主线路</span><label class="proxy-toggle"><input v-model="form.primary_use_proxy" type="checkbox" role="switch" aria-label="主线路使用代理" />使用代理</label></div>
       <label
-        >主线路<input
+        ><input
           v-model="form.primary_url"
+          aria-label="主线路地址"
           type="url"
           placeholder="https://emby.example.com"
           required
@@ -69,7 +71,7 @@ defineEmits(["save", "delete", "export", "detail", "reveal"]);
             :key="index"
             class="secondary-slot"
           >
-            <h4>备用{{ index + 1 }}</h4>
+            <div class="route-heading"><h4>备用{{ index + 1 }}</h4><label class="proxy-toggle"><input v-model="line.use_proxy" type="checkbox" role="switch" :aria-label="`备用${index + 1}使用代理`" />使用代理</label></div>
             <label
               >名称<input
                 v-model="line.name"
