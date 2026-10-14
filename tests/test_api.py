@@ -144,8 +144,17 @@ class APITests(unittest.TestCase):
         self.assertEqual(server["checked_at"], now)
         self.assertEqual(server["history"][-1]["state"], "slow")
         self.assertAlmostEqual(server["history"][-1]["sample_at"], bucket + 0.1)
-        self.assertIsNone(server["history"][-3]["sample_at"])
+        self.assertEqual(len(server["history"]), 2)
         self.assertEqual(server["history"][-2]["state"], "slow")
+        before = server["history"]
+        with app.connect() as db:
+            db.execute(
+                "INSERT INTO samples VALUES(?,?,?,?)", (sid, time.time(), "healthy", 20)
+            )
+        _, refreshed, _ = self.req("/api/status")
+        after = next(s for s in refreshed["servers"] if s["id"] == sid)["history"]
+        self.assertEqual(after[:-1], before)
+        self.assertEqual(after[-1]["state"], "healthy")
         with app.connect() as db:
             snapshot = json.loads(
                 db.execute(

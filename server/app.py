@@ -120,22 +120,19 @@ def serialize(db, row, now, private=False):
     state = snapshot.get("state", "pending")
     if snapshot.get("checked_at") and now - snapshot["checked_at"] > 1800:
         state = "offline"
-    bucket = int(now // 300) * 300
-    history = []
     rows = db.execute(
-        "SELECT * FROM samples WHERE server_id=? AND at>=? AND at<=? ORDER BY at",
-        (row["id"], bucket - 59 * 300, now),
+        "SELECT at,state,delay FROM samples WHERE server_id=? AND at>=? AND at<=? ORDER BY at DESC LIMIT 60",
+        (row["id"], now - 18000, now),
     ).fetchall()
-    for at in range(bucket - 59 * 300, bucket + 1, 300):
-        sample = next((r for r in reversed(rows) if at <= r["at"] < at + 300), None)
-        history.append(
-            {
-                "at": at,
-                "sample_at": sample["at"] if sample else None,
-                "state": sample["state"] if sample else "offline",
-                "delay_ms": sample["delay"] if sample else None,
-            }
-        )
+    history = [
+        {
+            "at": r["at"],
+            "sample_at": r["at"],
+            "state": r["state"],
+            "delay_ms": r["delay"],
+        }
+        for r in reversed(rows)
+    ]
     public_fields = (
         "name",
         "state",
