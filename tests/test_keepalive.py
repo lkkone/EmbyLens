@@ -14,9 +14,9 @@ class KeepaliveTests(unittest.TestCase):
         snapshot = {"last_played_at": 1000}
         for days, state in [
             (0, "healthy"),
-            (14.9, "healthy"),
+            (14, "healthy"),
             (15, "warning"),
-            (29.9, "warning"),
+            (29, "warning"),
             (30, "error"),
             (40, "error"),
         ]:
@@ -28,6 +28,26 @@ class KeepaliveTests(unittest.TestCase):
         result = app.keepalive_status(config, snapshot, 1000, True)
         self.assertEqual(result["state"], "error")
         self.assertIsNone(result["days"])
+
+    def test_calendar_days_use_beijing_midnight(self):
+        played = emby.datetime.fromisoformat("2026-10-13T23:59:00+08:00").timestamp()
+        now = emby.datetime.fromisoformat("2026-10-14T00:01:00+08:00").timestamp()
+        result = app.keepalive_status(
+            {"keepalive_days": 10}, {"last_played_at": played}, now
+        )
+        self.assertEqual(result["days"], 1)
+        self.assertEqual(result["state"], "healthy")
+        result = app.keepalive_status(
+            {"keepalive_days": 1}, {"last_played_at": played}, now
+        )
+        self.assertEqual(result["state"], "error")
+        same_day = emby.datetime.fromisoformat("2026-10-13T23:59:30+08:00").timestamp()
+        self.assertEqual(
+            app.keepalive_status(
+                {"keepalive_days": 10}, {"last_played_at": played}, same_day
+            )["days"],
+            0,
+        )
 
     def test_days_validation(self):
         body = {
