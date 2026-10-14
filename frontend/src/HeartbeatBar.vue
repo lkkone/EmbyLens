@@ -16,7 +16,9 @@ const label = {
 const bars = computed(() =>
   props.history.map((h) => ({
     ...h,
-    title: `${new Date(h.at * 1000).toLocaleString("zh-CN", { hour12: false })} · ${label[h.state] || h.state}${h.delay_ms != null ? ` · ${h.delay_ms} ms` : ""}`,
+    title: h.sample_at != null
+      ? `${new Date(h.sample_at * 1000).toLocaleString("zh-CN", { hour12: false })} · ${label[h.state] || h.state}${h.delay_ms != null ? ` · ${h.delay_ms} ms` : ""}`
+      : `${new Date(h.at * 1000).toLocaleString("zh-CN", { hour12: false })} – ${new Date((h.at + 300) * 1000).toLocaleTimeString("zh-CN", { hour12: false })} · 无记录`,
   })),
 );
 </script>

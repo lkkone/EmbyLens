@@ -122,35 +122,20 @@ def serialize(db, row, now, private=False):
         state = "offline"
     bucket = int(now // 300) * 300
     history = []
-    ranks = {"healthy": 0, "slow": 1, "pending": 2, "error": 3, "offline": 4}
     rows = db.execute(
-        "SELECT * FROM samples WHERE server_id=? AND at>=? ORDER BY at",
-        (row["id"], bucket - 59 * 300 - 900),
+        "SELECT * FROM samples WHERE server_id=? AND at>=? AND at<=? ORDER BY at",
+        (row["id"], bucket - 59 * 300, now),
     ).fetchall()
     for at in range(bucket - 59 * 300, bucket + 1, 300):
-        group = [r for r in rows if at <= r["at"] < at + 300]
-        worst = (
-            max(group, key=lambda r: ranks.get(r["state"], 3))
-            if group
-            else next((r for r in reversed(rows) if at - 900 <= r["at"] < at), None)
-        )
+        sample = next((r for r in reversed(rows) if at <= r["at"] < at + 300), None)
         history.append(
             {
                 "at": at,
-                "state": worst["state"] if worst else "offline",
-                "delay_ms": worst["delay"] if worst else None,
+                "sample_at": sample["at"] if sample else None,
+                "state": sample["state"] if sample else "offline",
+                "delay_ms": sample["delay"] if sample else None,
             }
         )
-    # The final bar represents now; earlier buckets retain their actual history.
-    history[-1]["state"] = state
-    history[-1]["delay_ms"] = next(
-        (
-            line.get("delay_ms")
-            for line in snapshot.get("lines", [])
-            if line.get("label") == "主线路"
-        ),
-        None,
-    )
     public_fields = (
         "name",
         "state",

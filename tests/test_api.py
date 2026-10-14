@@ -95,7 +95,7 @@ class APITests(unittest.TestCase):
             self.assertTrue(snapshot["refresh_stats"])
         self.req("/api/servers/" + sid, "DELETE", {}, cookie)
 
-    def test_metadata_save_is_immediate_and_current_history_matches(self):
+    def test_metadata_save_is_immediate_and_history_remains_real(self):
         _, _, headers = self.req(
             "/api/login", "POST", {"username": "test", "password": "test-only-password"}
         )
@@ -142,7 +142,9 @@ class APITests(unittest.TestCase):
         server = next(s for s in public["servers"] if s["id"] == sid)
         self.assertEqual(server["lines"][1]["label"], "New backup")
         self.assertEqual(server["checked_at"], now)
-        self.assertEqual(server["history"][-1]["state"], "healthy")
+        self.assertEqual(server["history"][-1]["state"], "slow")
+        self.assertAlmostEqual(server["history"][-1]["sample_at"], bucket + 0.1)
+        self.assertIsNone(server["history"][-3]["sample_at"])
         self.assertEqual(server["history"][-2]["state"], "slow")
         with app.connect() as db:
             snapshot = json.loads(
