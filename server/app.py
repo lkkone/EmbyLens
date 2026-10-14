@@ -527,7 +527,8 @@ class Handler(BaseHTTPRequestHandler):
                     snapshot = (
                         json.loads(row["snapshot"])
                         if all(
-                            config[k] == previous.get(k)
+                            config[k]
+                            == previous.get(k, "auto" if k == "client_name" else None)
                             for k in (
                                 "username",
                                 "password",

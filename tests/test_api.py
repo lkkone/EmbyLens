@@ -1,10 +1,12 @@
 import http.client
 import json
+import os
 import sys
 import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "server"))
 import app
@@ -42,6 +44,55 @@ class APITests(unittest.TestCase):
         head = dict(response.getheaders())
         conn.close()
         return status, value, head
+
+    def test_legacy_route_toggle_keeps_existing_statistics(self):
+        _, _, headers = self.req(
+            "/api/login", "POST", {"username": "test", "password": "test-only-password"}
+        )
+        cookie = headers["Set-Cookie"].split(";", 1)[0]
+        body = {
+            "primary_url": "https://legacy.example.com",
+            "username": "u",
+            "password": "p",
+        }
+        _, created, _ = self.req("/api/servers", "POST", body, cookie)
+        sid = created["id"]
+        with app.connect() as db:
+            row = db.execute("SELECT config FROM servers WHERE id=?", (sid,)).fetchone()
+            cfg = json.loads(row["config"])
+            cfg.pop("client_name")
+            db.execute(
+                "UPDATE servers SET config=?, snapshot=? WHERE id=?",
+                (
+                    json.dumps(cfg),
+                    json.dumps({"name": "Legacy name", "stats": {"total": 123}}),
+                    sid,
+                ),
+            )
+        with patch.dict(os.environ, {"OUTBOUND_PROXY_URL": "http://127.0.0.1:7897"}):
+            self.assertEqual(
+                self.req(
+                    "/api/servers/" + sid,
+                    "PATCH",
+                    {
+                        **body,
+                        "password": "",
+                        "client_name": "auto",
+                        "primary_use_proxy": True,
+                    },
+                    cookie,
+                )[0],
+                200,
+            )
+        with app.connect() as db:
+            row = db.execute(
+                "SELECT snapshot FROM servers WHERE id=?", (sid,)
+            ).fetchone()
+            snapshot = json.loads(row["snapshot"])
+            self.assertEqual(snapshot["name"], "Legacy name")
+            self.assertEqual(snapshot["stats"]["total"], 123)
+            self.assertTrue(snapshot["refresh_stats"])
+        self.req("/api/servers/" + sid, "DELETE", {}, cookie)
 
     def test_auth_crud_and_credential_redaction(self):
         self.assertEqual(self.req("/api/servers")[0], 401)
