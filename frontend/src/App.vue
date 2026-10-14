@@ -299,7 +299,7 @@ onUnmounted(() => {
 </script>
 <template>
   <main v-if="admin && !authenticated" class="login panel">
-    <img src="/avatar.png" alt="" class="avatar" />
+    <img src="/emby-avatar.png" alt="" class="avatar" />
     <h1>咸鱼的 Emby 管理</h1>
     <form @submit.prevent="login">
       <label
@@ -328,7 +328,7 @@ onUnmounted(() => {
       </div>
     </div>
     <header class="page-title">
-      <img src="/avatar.png" class="avatar" alt="" />
+      <img src="/emby-avatar.png" class="avatar" alt="" />
       <h1>{{ admin ? "咸鱼的 Emby 管理" : "咸鱼的 Emby 状态" }}</h1>
     </header>
     <p v-if="failure" class="connection-error" role="alert">
