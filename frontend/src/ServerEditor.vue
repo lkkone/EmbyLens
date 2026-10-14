@@ -103,13 +103,17 @@ defineEmits(["save", "delete", "export", "detail", "reveal"]);
             <option value="Forward">Forward</option>
             <option value="Infuse">Infuse</option>
             <option value="ReX">ReX</option>
+            <option value="Lenna">Lenna</option>
+            <option value="Senplayer">Senplayer</option>
+            <option value="Vidhub">Vidhub</option>
+            <option value="EplayerX">EplayerX</option>
             <option v-if="form.client_name === 'auto'" value="auto">
               沿用已验证格式
             </option>
             <option
               v-if="
                 form.client_name &&
-                !['Forward', 'Infuse', 'ReX', 'EmbyLens', 'auto'].includes(
+                !['Forward', 'Infuse', 'ReX', 'Lenna', 'Senplayer', 'Vidhub', 'EplayerX', 'EmbyLens', 'auto'].includes(
                   form.client_name,
                 )
               "
