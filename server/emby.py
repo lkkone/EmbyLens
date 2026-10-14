@@ -192,9 +192,6 @@ def validate_config(body, old=None):
         )
         else {}
     )
-    result["count_capabilities"] = {
-        k: v for k, v in old.get("count_capabilities", {}).items() if k in seen
-    }
     return result
 
 
@@ -350,87 +347,6 @@ class Client:
                     dates.append(at)
         return max(dates) if dates else None
 
-    def direct_today_count(self, today):
-        cache = self.config.setdefault("count_capabilities", {})
-        capability = cache.get(self.base, {})
-        params = {
-            "Recursive": "true",
-            "IncludeItemTypes": "Movie,Episode",
-            "Limit": 1,
-            "EnableImages": "false",
-            "EnableTotalRecordCount": "true",
-            "Fields": "DateCreated",
-            "SortBy": "DateCreated",
-            "SortOrder": "Ascending",
-            "UserId": self.uid,
-        }
-        paths = {"user": "/Users/" + self.uid + "/Items", "items": "/Items"}
-        mode = capability.get("mode")
-        if time.time() - capability.get("checked_at", 0) >= 86400:
-            mode = None
-            for candidate, path in paths.items():
-                try:
-                    probe = self.request(
-                        path,
-                        {
-                            **params,
-                            "MinDateCreated": "2099-01-01T00:00:00Z",
-                            "MaxDateCreated": "2100-01-01T00:00:00Z",
-                        },
-                    )
-                except urllib.error.HTTPError as exc:
-                    if exc.code in (301, 302, 307, 308, 400, 404):
-                        continue
-                    raise
-                if probe.get("TotalRecordCount") == 0 and not probe.get("Items"):
-                    maximum_probe = self.request(
-                        path,
-                        {
-                            **params,
-                            "MinDateCreated": "1900-01-01T00:00:00Z",
-                            "MaxDateCreated": "1901-01-01T00:00:00Z",
-                        },
-                    )
-                    if maximum_probe.get("TotalRecordCount") != 0 or maximum_probe.get(
-                        "Items"
-                    ):
-                        continue
-                    mode = candidate
-                    break
-            cache[self.base] = {"mode": mode, "checked_at": time.time()}
-        if mode is None:
-            return None
-        start = datetime.combine(today, datetime.min.time(), tzinfo=CST)
-        end = start + timedelta(days=1)
-        data = self.request(
-            paths[mode],
-            {
-                **params,
-                "MinDateCreated": start.isoformat(),
-                "MaxDateCreated": end.isoformat(),
-            },
-        )
-        count = data.get("TotalRecordCount")
-        items = data.get("Items", [])
-        valid = type(count) is int and count >= 0 and (count == 0 or bool(items))
-        for item in items:
-            try:
-                valid = (
-                    valid
-                    and datetime.fromisoformat(
-                        item["DateCreated"].replace("Z", "+00:00")
-                    )
-                    .astimezone(CST)
-                    .date()
-                    == today
-                )
-            except (KeyError, ValueError):
-                valid = False
-        if not valid:
-            cache[self.base] = {"mode": None, "checked_at": time.time()}
-            return None
-        return count
-
     def stats(self):
         result = {}
         for kind, key in [("Movie", "movies"), ("Series", "series")]:
@@ -448,7 +364,6 @@ class Client:
             result["total"] = total
             result["episodes"] = total - result["movies"]
         today = datetime.now(CST).date()
-        direct_count = self.direct_today_count(today)
         count = 0
         recent = []
         complete = False
@@ -457,9 +372,7 @@ class Client:
         seen_pages = set()
         seen_items = set()
         while True:
-            batch = self.items(
-                "Movie,Episode", 8 if direct_count is not None else 200, start
-            ).get("Items", [])
+            batch = self.items("Movie,Episode", 200, start).get("Items", [])
             page_ids = tuple(i.get("Id") for i in batch)
             if batch and all(page_ids):
                 if page_ids in seen_pages:
@@ -475,10 +388,6 @@ class Client:
                     }
                     for i in batch[:8]
                 ]
-            if direct_count is not None:
-                count = direct_count
-                complete = True
-                break
             reached = False
             for item in batch:
                 item_id = item.get("Id")

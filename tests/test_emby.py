@@ -317,7 +317,6 @@ class CollectionTests(unittest.TestCase):
 
         c = object.__new__(emby.Client)
         c.items = items
-        c.direct_today_count = lambda today: None
         result = c.stats()
         self.assertEqual(result["today"], 200)
         self.assertEqual(result["total"], 801)
@@ -337,7 +336,6 @@ class CollectionTests(unittest.TestCase):
 
         c = object.__new__(emby.Client)
         c.items = items
-        c.direct_today_count = lambda today: None
         result = c.stats()
         self.assertEqual(result["episodes"], 45)
         self.assertEqual(result["total"], 57)
@@ -359,54 +357,13 @@ class CollectionTests(unittest.TestCase):
 
         c = object.__new__(emby.Client)
         c.items = items
-        c.direct_today_count = lambda today: None
         result = c.stats()
         self.assertEqual(calls, [0, 200, 400, 600, 800, 1000])
         self.assertEqual(result["today"], 1000)
         self.assertTrue(result["today_complete"])
 
-    def test_direct_count_validates_filters_and_caches_capability(self):
-        c = object.__new__(emby.Client)
-        c.config, c.base, c.uid = {}, "https://example.com/emby", "user"
-        today = datetime.now(emby.CST).date()
-        calls = []
-
-        def request(path, params):
-            calls.append((path, params))
-            if params["MinDateCreated"].startswith("2099") or params[
-                "MaxDateCreated"
-            ].startswith("1901"):
-                return {"TotalRecordCount": 0, "Items": []}
-            return {
-                "TotalRecordCount": 1250,
-                "Items": [{"DateCreated": str(today) + "T01:00:00+08:00"}],
-            }
-
-        c.request = request
-        self.assertEqual(c.direct_today_count(today), 1250)
-        self.assertEqual(c.direct_today_count(today), 1250)
-        self.assertEqual(len(calls), 4)
-
-    def test_ignored_date_filter_falls_back_and_is_cached(self):
-        c = object.__new__(emby.Client)
-        c.config, c.base, c.uid = {}, "https://example.com/emby", "user"
-        calls = []
-
-        def request(path, params):
-            calls.append(path)
-            return {
-                "TotalRecordCount": 50000,
-                "Items": [{"DateCreated": "2020-01-01T00:00:00Z"}],
-            }
-
-        c.request = request
-        self.assertIsNone(c.direct_today_count(datetime.now(emby.CST).date()))
-        self.assertIsNone(c.direct_today_count(datetime.now(emby.CST).date()))
-        self.assertEqual(len(calls), 2)
-
     def test_repeated_pages_fail_instead_of_looping_forever(self):
         c = object.__new__(emby.Client)
-        c.direct_today_count = lambda today: None
 
         def items(kind, limit=1, start=0):
             if limit == 1:
