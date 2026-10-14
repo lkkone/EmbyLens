@@ -29,25 +29,14 @@ class KeepaliveTests(unittest.TestCase):
         self.assertEqual(result["state"], "error")
         self.assertIsNone(result["days"])
 
-    def test_calendar_days_use_beijing_midnight(self):
+    def test_days_count_complete_24_hour_periods(self):
         played = emby.datetime.fromisoformat("2026-10-13T23:59:00+08:00").timestamp()
-        now = emby.datetime.fromisoformat("2026-10-14T00:01:00+08:00").timestamp()
-        result = app.keepalive_status(
-            {"keepalive_days": 10}, {"last_played_at": played}, now
-        )
-        self.assertEqual(result["days"], 1)
-        self.assertEqual(result["state"], "healthy")
-        result = app.keepalive_status(
-            {"keepalive_days": 1}, {"last_played_at": played}, now
-        )
-        self.assertEqual(result["state"], "error")
-        same_day = emby.datetime.fromisoformat("2026-10-13T23:59:30+08:00").timestamp()
-        self.assertEqual(
-            app.keepalive_status(
-                {"keepalive_days": 10}, {"last_played_at": played}, same_day
-            )["days"],
-            0,
-        )
+        for hours, days in [(0, 0), (0.1, 0), (23.99, 0), (24, 1), (47.99, 1), (48, 2)]:
+            result = app.keepalive_status(
+                {"keepalive_days": 1}, {"last_played_at": played}, played + hours * 3600
+            )
+            self.assertEqual(result["days"], days)
+            self.assertEqual(result["state"], "healthy" if days == 0 else "error")
 
     def test_days_validation(self):
         body = {

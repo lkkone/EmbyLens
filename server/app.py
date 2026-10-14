@@ -11,12 +11,11 @@ import sqlite3
 import threading
 import time
 from contextlib import contextmanager
-from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from emby import CST, collect, secondary_lines, validate_config
+from emby import collect, secondary_lines, validate_config
 
 DATA = Path(os.environ.get("DATA_DIR", "/data"))
 WEB = Path(__file__).parent / "web"
@@ -121,17 +120,7 @@ def keepalive_status(config, snapshot, now, unavailable=False):
     if not limit:
         return None
     played = snapshot.get("last_played_at")
-    elapsed = (
-        max(
-            0,
-            (
-                datetime.fromtimestamp(now, CST).date()
-                - datetime.fromtimestamp(played, CST).date()
-            ).days,
-        )
-        if played is not None
-        else None
-    )
+    elapsed = max(0, int((now - played) // 86400)) if played is not None else None
     state = (
         "error"
         if unavailable
