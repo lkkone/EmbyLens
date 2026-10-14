@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, nextTick } from "vue";
+import { computed, onMounted, onUnmounted, ref, nextTick, watch } from "vue";
+import { createFaviconBadge } from "./faviconBadge.js";
 import HeartbeatBar from "./HeartbeatBar.vue";
 import ServerEditor from "./ServerEditor.vue";
 const admin = location.pathname.replace(/\/$/, "") === "/admin";
@@ -119,6 +120,13 @@ const editing = computed(() =>
 const active = computed(() =>
   servers.value.find((s) => s.id === activeId.value),
 );
+const faviconBadge = createFaviconBadge();
+watch(
+  () => servers.value.filter((s) => ["slow", "error", "offline"].includes(s.state)).length,
+  (count) => faviconBadge.update(count),
+  { immediate: true },
+);
+onUnmounted(() => faviconBadge.dispose());
 const overall = computed(() => {
   if (!servers.value.length)
     return { state: "pending", text: "等待接入 Emby 服务器", symbol: "○" };
