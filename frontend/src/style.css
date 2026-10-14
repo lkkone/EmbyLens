@@ -242,6 +242,8 @@ small,
   border-radius: 800px;
   flex: 1;
   min-width: 0;
+  position: relative;
+  transition: transform 0.15s ease-in-out, opacity 0.15s ease-in-out;
 }
 .beat.offline {
   background: var(--color-gray);
@@ -254,7 +256,12 @@ small,
   opacity: 0.7;
 }
 .beat:hover {
-  opacity: 0.55;
+  opacity: 0.8;
+  transform: scale(1.5);
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .beat { transition: none; }
 }
 .beat-time {
   display: flex;
