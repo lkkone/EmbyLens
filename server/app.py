@@ -120,15 +120,15 @@ def serialize(db, row, now, private=False):
     state = snapshot.get("state", "pending")
     if snapshot.get("checked_at") and now - snapshot["checked_at"] > 1800:
         state = "offline"
-    bucket = int(now // 600) * 600
+    bucket = int(now // 300) * 300
     history = []
     ranks = {"healthy": 0, "slow": 1, "pending": 2, "error": 3, "offline": 4}
     rows = db.execute(
         "SELECT * FROM samples WHERE server_id=? AND at>=? ORDER BY at",
-        (row["id"], bucket - 29 * 600 - 900),
+        (row["id"], bucket - 59 * 300 - 900),
     ).fetchall()
-    for at in range(bucket - 29 * 600, bucket + 1, 600):
-        group = [r for r in rows if at <= r["at"] < at + 600]
+    for at in range(bucket - 59 * 300, bucket + 1, 300):
+        group = [r for r in rows if at <= r["at"] < at + 300]
         worst = (
             max(group, key=lambda r: ranks.get(r["state"], 3))
             if group
