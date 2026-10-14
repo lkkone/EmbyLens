@@ -20,5 +20,6 @@ jobs:
       - run: black --check server scripts tests
       - run: python -m unittest discover -s tests
       - run: npm --prefix frontend ci
+      - run: npm --prefix frontend audit --audit-level=high
       - run: npm --prefix frontend run build
       - run: docker build -t embylens:ci .

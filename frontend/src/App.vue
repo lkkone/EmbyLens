@@ -270,18 +270,6 @@ async function remove() {
     busy.value = false;
   }
 }
-async function rescan() {
-  busy.value = true;
-  try {
-    await api(`/api/servers/${editingId.value}/refresh`, "POST", {});
-    notice.value = "已安排重新采集";
-    setTimeout(() => (notice.value = ""), 4000);
-  } catch (e) {
-    formError.value = e.message;
-  } finally {
-    busy.value = false;
-  }
-}
 async function detail(s) {
   activeId.value = s.id;
   await nextTick();
