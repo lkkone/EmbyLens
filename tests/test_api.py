@@ -111,7 +111,7 @@ class APITests(unittest.TestCase):
         _, created, _ = self.req("/api/servers", "POST", body, cookie)
         sid = created["id"]
         now = time.time()
-        bucket = int(now // 300) * 300
+        bucket = int(now // 600) * 600
         with app.connect() as db:
             db.execute(
                 "UPDATE servers SET snapshot=? WHERE id=?",
@@ -142,6 +142,7 @@ class APITests(unittest.TestCase):
         server = next(s for s in public["servers"] if s["id"] == sid)
         self.assertEqual(server["lines"][1]["label"], "New backup")
         self.assertEqual(server["checked_at"], now)
+        self.assertEqual(len(server["history"]), 30)
         self.assertEqual(server["history"][-1]["state"], "healthy")
         self.assertEqual(server["history"][-2]["state"], "slow")
         with app.connect() as db:
