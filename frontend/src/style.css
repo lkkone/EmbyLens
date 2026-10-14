@@ -1357,3 +1357,32 @@ dialog.security-dialog {
 .proxy-toggle input::before { content: ""; display: block; width: 14px; height: 14px; border-radius: 50%; background: white; transition: transform .15s; }
 .proxy-toggle input:checked { background: #258457; }
 .proxy-toggle input:checked::before { transform: translateX(12px); }
+
+.emby-device { position: relative; }
+.keepalive-badge {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-gray);
+}
+.keepalive-badge svg { width: 18px; height: 18px; }
+.keepalive-badge.healthy { color: var(--color-green); }
+.keepalive-badge.warning { color: var(--color-amber); }
+.keepalive-badge.error { color: var(--color-red); }
+.emby-device:has(.keepalive-badge) { padding-top: 40px; }
+.keepalive-setting { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.keepalive-setting input { width: 105px; margin: 0; }
+@media (max-width: 575px) {
+  .keepalive-setting { flex-wrap: wrap; gap: 4px; }
+  .keepalive-setting input { width: 90px; }
+}
+@media (max-width: 575px) {
+  .actions:has(.keepalive-setting) { flex-wrap: wrap; }
+  .keepalive-setting { order: -1; flex-basis: 100%; justify-content: center; }
+}

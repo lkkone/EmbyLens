@@ -109,6 +109,17 @@ def validate_config(body, old=None):
     if not isinstance(name, str) or len(name) > 200:
         raise ValueError("服务器名称应在 200 字符以内")
     result["display_name"] = name.strip()
+    days = body.get("keepalive_days", old.get("keepalive_days", 0))
+    if days in (None, ""):
+        days = 0
+    if (
+        isinstance(days, bool)
+        or not isinstance(days, (int, float))
+        or days != int(days)
+        or not 0 <= days <= 3650
+    ):
+        raise ValueError("保号天数应为 1–3650 的整数，留空关闭")
+    result["keepalive_days"] = int(days)
     result["primary_use_proxy"] = proxy_flag(
         body.get("primary_use_proxy", old.get("primary_use_proxy", False))
     )
@@ -307,6 +318,32 @@ class Client:
             },
         )
 
+    def last_played(self):
+        data = self.request(
+            "/Users/" + self.uid + "/Items",
+            {
+                "Recursive": "true",
+                "IncludeItemTypes": "Movie,Episode",
+                "SortBy": "DatePlayed",
+                "SortOrder": "Descending",
+                "Limit": 1,
+                "EnableUserData": "true",
+                "EnableImages": "false",
+                "EnableTotalRecordCount": "false",
+            },
+        )
+        dates = []
+        for item in data.get("Items", []):
+            value = item.get("UserData", {}).get("LastPlayedDate")
+            if value:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                at = parsed.timestamp()
+                if 0 < at <= time.time():
+                    dates.append(at)
+        return max(dates) if dates else None
+
     def stats(self):
         result = {}
         for kind, key in [("Movie", "movies"), ("Series", "series")]:
@@ -482,6 +519,22 @@ def collect(config, old, sid):
         if any(i.get("Id") != info.get("Id") for _, i in clients[1:]):
             result.update(state="error", error="主副线路指向不同服务器")
             return result
+        if (
+            config.get("keepalive_days", 0)
+            and time.time() - old.get("playback_checked_at", 0) >= 86400
+        ):
+            result["playback_checked_at"] = time.time()
+            try:
+                played = client.last_played()
+                previous_played = old.get("last_played_at")
+                result["last_played_at"] = (
+                    max(v for v in (played, previous_played) if v is not None)
+                    if played is not None or previous_played is not None
+                    else None
+                )
+                result.pop("playback_error", None)
+            except Exception as exc:
+                result["playback_error"] = error_label(exc)
         due = (
             old.get("refresh_stats")
             or time.time() - old.get("stats_at", 0) > 3600

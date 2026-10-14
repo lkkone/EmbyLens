@@ -1,0 +1,98 @@
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "server"))
+import app
+import emby
+
+
+class KeepaliveTests(unittest.TestCase):
+    def test_boundaries_unknown_disabled_and_inaccessible(self):
+        config = {"keepalive_days": 30}
+        snapshot = {"last_played_at": 1000}
+        for days, state in [
+            (0, "healthy"),
+            (14.9, "healthy"),
+            (15, "warning"),
+            (29.9, "warning"),
+            (30, "error"),
+            (40, "error"),
+        ]:
+            result = app.keepalive_status(config, snapshot, 1000 + days * 86400)
+            self.assertEqual(result["state"], state)
+            self.assertEqual(result["days"], int(days))
+        self.assertIsNone(app.keepalive_status({}, snapshot, 1000))
+        self.assertEqual(app.keepalive_status(config, {}, 1000)["state"], "unknown")
+        result = app.keepalive_status(config, snapshot, 1000, True)
+        self.assertEqual(result["state"], "error")
+        self.assertIsNone(result["days"])
+
+    def test_days_validation(self):
+        body = {
+            "primary_url": "https://example.com",
+            "username": "user",
+            "password": "password",
+        }
+        for days in ("", 0, 1, 30, 3650):
+            self.assertEqual(
+                emby.validate_config({**body, "keepalive_days": days}, {})[
+                    "keepalive_days"
+                ],
+                days or 0,
+            )
+        for days in (-1, 1.5, True, "30", 3651):
+            with self.assertRaises(ValueError):
+                emby.validate_config({**body, "keepalive_days": days}, {})
+
+    def test_last_played_is_user_scoped_read_only_query(self):
+        client = object.__new__(emby.Client)
+        client.uid = "my-user"
+        calls = []
+
+        def request(path, params):
+            calls.append((path, params))
+            return {"Items": [{"UserData": {"LastPlayedDate": "2026-01-01T12:00:00Z"}}]}
+
+        client.request = request
+        self.assertIsNotNone(client.last_played())
+        self.assertEqual(calls[0][0], "/Users/my-user/Items")
+        self.assertEqual(calls[0][1]["SortBy"], "DatePlayed")
+        self.assertEqual(calls[0][1]["Limit"], 1)
+        self.assertNotIn("IsPlayed", calls[0][1])
+
+    def test_playback_query_only_once_per_day(self):
+        calls = []
+
+        class Client:
+            token = "token"
+            uid = "user"
+
+            def __init__(self, *args):
+                pass
+
+            def probe(self):
+                return {"Id": "server", "ServerName": "test"}
+
+            def last_played(self):
+                calls.append(1)
+                return 900
+
+        config = {"primary_url": "https://test", "keepalive_days": 30}
+        old = {
+            "stats_at": 100000,
+            "stats": {"day": str(emby.datetime.now(emby.CST).date())},
+        }
+        with patch.object(emby, "Client", Client), patch.object(
+            emby.time, "time", return_value=100000
+        ):
+            result = emby.collect(config, old, "test")
+            again = emby.collect(config, result, "test")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(again["last_played_at"], 900)
+        with patch.object(emby, "Client", Client), patch.object(
+            emby.time, "time", return_value=186400
+        ):
+            emby.collect(config, again, "test")
+        self.assertEqual(len(calls), 2)

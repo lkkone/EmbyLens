@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, nextTick, watch } from "vue";
+import KeepaliveBadge from "./KeepaliveBadge.vue";
 import { createFaviconBadge } from "./faviconBadge.js";
 import HeartbeatBar from "./HeartbeatBar.vue";
 import ServerEditor from "./ServerEditor.vue";
@@ -93,6 +94,7 @@ const blank = () => ({
   primary_url: "",
   primary_use_proxy: false,
   display_name: "",
+  keepalive_days: "",
   secondary_lines: lineSlots(),
   user_agent: "Forward",
   client_name: "Forward",
@@ -195,6 +197,7 @@ function edit(s) {
     ? {
         ...blank(),
         ...s.config,
+        keepalive_days: s.config.keepalive_days || "",
         secondary_lines: lineSlots(s.config.secondary_lines),
         group: s.group,
         notes: s.notes,
@@ -389,6 +392,7 @@ onUnmounted(() => {
             class="device emby-device"
             :class="s.state"
           >
+            <KeepaliveBadge :value="s.keepalive" />
             <div class="emby-summary">
               <div class="device-name-row">
                 <span class="status-dot"></span

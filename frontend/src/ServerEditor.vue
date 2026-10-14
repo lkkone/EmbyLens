@@ -183,7 +183,7 @@ defineEmits(["save", "delete", "export", "detail", "reveal"]);
           @click="$emit('delete')"
         >
           删除服务器</button
-        ><button class="btn primary" :disabled="busy">
+        ><label class="keepalive-setting">保号天数<input v-model.number="form.keepalive_days" type="number" min="1" max="3650" step="1" placeholder="留空关闭" /></label><button class="btn primary" :disabled="busy">
           {{ busy ? "正在保存…" : server ? "保存" : "接入并采集" }}
         </button>
       </div>

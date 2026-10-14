@@ -115,6 +115,35 @@ def text(value, limit=200):
 WAKE = threading.Event()
 
 
+def keepalive_status(config, snapshot, now, unavailable=False):
+    limit = config.get("keepalive_days", 0)
+    if not limit:
+        return None
+    played = snapshot.get("last_played_at")
+    elapsed = max(0, (now - played) / 86400) if played is not None else None
+    state = (
+        "error"
+        if unavailable
+        else (
+            "unknown"
+            if elapsed is None
+            else (
+                "healthy"
+                if elapsed < limit / 2
+                else "warning" if elapsed < limit else "error"
+            )
+        )
+    )
+    return {
+        "state": state,
+        "days": int(elapsed) if elapsed is not None and not unavailable else None,
+        "limit": limit,
+        "last_played_at": played,
+        "checked_at": snapshot.get("playback_checked_at"),
+        "error": "线路或账号不可用" if unavailable else snapshot.get("playback_error"),
+    }
+
+
 def serialize(db, row, now, private=False):
     snapshot = json.loads(row["snapshot"])
     state = snapshot.get("state", "pending")
@@ -153,6 +182,7 @@ def serialize(db, row, now, private=False):
     }
     result["state"] = state
     config = json.loads(row["config"])
+    result["keepalive"] = keepalive_status(config, snapshot, now, state == "error")
     result["automatic_name"] = snapshot.get("name") or ""
     result["name"] = (
         config.get("display_name") or snapshot.get("name") or "等待获取名称"
