@@ -232,7 +232,7 @@ def worker():
                 )
             if WAKE.is_set():
                 break
-        WAKE.wait(60)
+        WAKE.wait(5)
         WAKE.clear()
 
 

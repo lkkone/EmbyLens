@@ -468,7 +468,7 @@ def collect(config, old, sid):
         "lines": lines,
         "line_control": {base: checks[i][3] for i, (_, base) in enumerate(bases)},
         "checked_at": time.time(),
-        "next_check_at": time.time() + 300 + random.uniform(0, 30),
+        "next_check_at": (int(time.time() // 300) + 1) * 300,
         "state": (
             "healthy" if len(clients) == len(bases) else "slow" if clients else "error"
         ),

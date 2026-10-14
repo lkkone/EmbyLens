@@ -403,11 +403,14 @@ class CollectionTests(unittest.TestCase):
             def probe(self):
                 raise TimeoutError()
 
-        with patch.object(emby, "Client", Client):
+        with patch.object(emby, "Client", Client), patch.object(
+            emby.time, "time", return_value=725
+        ):
             old = {"stats": {"movies": 22}, "stats_at": 123}
             result = emby.collect(
                 {"primary_url": "https://a", "secondary_url": "https://b"}, old, "test"
             )
+        self.assertEqual(result["next_check_at"], 900)
         self.assertEqual(result["stats"]["movies"], 22)
         self.assertEqual(result["state"], "error")
 
