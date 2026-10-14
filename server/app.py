@@ -125,14 +125,14 @@ def serialize(db, row, now, private=False):
     ranks = {"healthy": 0, "slow": 1, "pending": 2, "error": 3, "offline": 4}
     rows = db.execute(
         "SELECT * FROM samples WHERE server_id=? AND at>=? ORDER BY at",
-        (row["id"], bucket - 59 * 300 - 600),
+        (row["id"], bucket - 59 * 300 - 900),
     ).fetchall()
     for at in range(bucket - 59 * 300, bucket + 1, 300):
         group = [r for r in rows if at <= r["at"] < at + 300]
         worst = (
             max(group, key=lambda r: ranks.get(r["state"], 3))
             if group
-            else next((r for r in reversed(rows) if at - 600 <= r["at"] < at), None)
+            else next((r for r in reversed(rows) if at - 900 <= r["at"] < at), None)
         )
         history.append(
             {

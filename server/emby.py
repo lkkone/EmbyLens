@@ -403,7 +403,7 @@ def failure_state(exc, previous):
     status = exc.code if isinstance(exc, urllib.error.HTTPError) else None
     if status == 401:
         return {"auth_failed": True, "retry_at": None, "failures": failures}
-    delay = 300 if status == 403 else min(3600, 300 * 2 ** min(failures - 1, 4))
+    delay = 600 if status == 403 else min(3600, 600 * 2 ** min(failures - 1, 4))
     if status == 429:
         delay = 900
         value = exc.headers.get("Retry-After", "") if exc.headers else ""
@@ -468,7 +468,7 @@ def collect(config, old, sid):
         "lines": lines,
         "line_control": {base: checks[i][3] for i, (_, base) in enumerate(bases)},
         "checked_at": time.time(),
-        "next_check_at": time.time() + 300 + random.uniform(0, 30),
+        "next_check_at": time.time() + 600 + random.uniform(0, 30),
         "state": (
             "healthy" if len(clients) == len(bases) else "slow" if clients else "error"
         ),
