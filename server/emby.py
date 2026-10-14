@@ -260,7 +260,7 @@ class Client:
             f'{prefix} Client="{name}", Device="{device}", DeviceId="embylens-{self.sid}", Version="{version}"'
         )
 
-    def request(self, path, params=None, body=None):
+    def request(self, path, params=None, body=None, *, timeout=15):
         wait = 0.5 - (time.monotonic() - self.last_request_at)
         if wait > 0:
             time.sleep(wait)
@@ -271,7 +271,7 @@ class Client:
             headers=self.headers,
             data=json.dumps(body).encode() if body is not None else None,
         )
-        with self.opener.open(req, timeout=15) as response:
+        with self.opener.open(req, timeout=timeout) as response:
             raw = response.read(16 * 1024 * 1024 + 1)
             if len(raw) > 16 * 1024 * 1024:
                 raise ValueError("response too large")
@@ -316,6 +316,7 @@ class Client:
                 "EnableTotalRecordCount": "true",
                 "GroupItemsIntoCollections": "false",
             },
+            timeout=60,
         )
 
     def last_played(self):
@@ -569,23 +570,8 @@ def collect(config, old, sid):
                     403,
                     429,
                 ):
-                    base = next(
-                        base
-                        for i, (_, base) in enumerate(bases)
-                        if checks[i][1] is client
+                    result["stats_retry_at"] = max(
+                        time.time() + 3600,
+                        failure_state(exc, {}).get("retry_at") or time.time() + 86400,
                     )
-                    result["line_control"][base] = {
-                        **failure_state(exc, {}),
-                        "line": {
-                            "label": next(label for label, url in bases if url == base),
-                            "state": "error",
-                            "error": error_label(exc),
-                        },
-                    }
-                    result["stats_retry_at"] = (
-                        result["line_control"][base].get("retry_at")
-                        or time.time() + 86400
-                    )
-        if result.get("stats_error") and result["state"] == "healthy":
-            result["state"] = "slow"
     return result

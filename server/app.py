@@ -147,6 +147,13 @@ def keepalive_status(config, snapshot, now, unavailable=False):
 def serialize(db, row, now, private=False):
     snapshot = json.loads(row["snapshot"])
     state = snapshot.get("state", "pending")
+    if (
+        state == "slow"
+        and snapshot.get("stats_error")
+        and snapshot.get("lines")
+        and all(line.get("state") == "healthy" for line in snapshot["lines"])
+    ):
+        state = "healthy"
     if snapshot.get("checked_at") and now - snapshot["checked_at"] > 1800:
         state = "offline"
     rows = db.execute(

@@ -442,7 +442,7 @@ onUnmounted(() => {
               <p class="last-seen">
                 {{
                   s.stats_error
-                    ? "数量采集失败 · " + s.stats_error
+                    ? (s.stats_at ? "更新于 " + time(s.stats_at) + " · " : "") + "最近一次数量采集失败 · " + s.stats_error
                     : "更新于 " + time(s.stats_at)
                 }}<span v-if="s.error"> · {{ s.error }}</span>
               </p>

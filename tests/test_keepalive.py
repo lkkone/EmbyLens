@@ -38,6 +38,61 @@ class KeepaliveTests(unittest.TestCase):
             self.assertEqual(result["days"], days)
             self.assertEqual(result["state"], "healthy" if days == 0 else "error")
 
+    def test_statistics_failure_does_not_mark_accessible_server_unhealthy(self):
+        class Client:
+            token, uid = "token", "user"
+
+            def __init__(self, *args):
+                pass
+
+            def probe(self):
+                return {"Id": "server", "ServerName": "test"}
+
+            def stats(self):
+                raise TimeoutError()
+
+        with patch.object(emby, "Client", Client):
+            result = emby.collect(
+                {"primary_url": "https://test"}, {"stats": {"movies": 12}}, "test"
+            )
+        self.assertEqual(result["state"], "healthy")
+        self.assertEqual(result["stats"]["movies"], 12)
+        self.assertIn("超时", result["stats_error"])
+
+    def test_statistics_http_error_does_not_poison_line_checks(self):
+        import urllib.error
+
+        class Client:
+            token, uid = "token", "user"
+
+            def __init__(self, *args):
+                pass
+
+            def probe(self):
+                return {"Id": "server", "ServerName": "test"}
+
+            def stats(self):
+                raise urllib.error.HTTPError(
+                    "https://test", 429, "rate limit", {"Retry-After": "7200"}, None
+                )
+
+        with patch.object(emby, "Client", Client), patch.object(
+            emby.time, "time", return_value=100000
+        ):
+            result = emby.collect({"primary_url": "https://test"}, {}, "test")
+        self.assertEqual(result["state"], "healthy")
+        self.assertEqual(result["line_control"]["https://test"], {})
+        self.assertGreaterEqual(result["stats_retry_at"], 107200)
+        self.assertLessEqual(result["stats_retry_at"], 107230)
+
+    def test_statistics_requests_have_longer_timeout(self):
+        client = object.__new__(emby.Client)
+        client.uid = "user"
+        calls = []
+        client.request = lambda *args, **kwargs: calls.append(kwargs) or {}
+        client.items("Movie")
+        self.assertEqual(calls[0]["timeout"], 60)
+
     def test_days_validation(self):
         body = {
             "primary_url": "https://example.com",
