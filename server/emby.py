@@ -14,6 +14,11 @@ from pathlib import Path
 from urllib.parse import unquote, urlencode, urlsplit
 
 CST = timezone(timedelta(hours=8))
+FAST_INTERVAL = 300
+DETAIL_INTERVAL = 3600
+ACCOUNT_INTERVAL = 86400
+FAST_GREEN_MS = 2000
+FAST_AMBER_MS = 4000
 
 
 def secondary_lines(config):
@@ -301,6 +306,40 @@ class Client:
         info = self.request("/System/Info/Public")
         return info
 
+    def response(self):
+        """Measure one Emby API response, excluding login and other requests."""
+        def timed_request():
+            wait = 0.5 - (time.monotonic() - self.last_request_at)
+            if wait > 0:
+                time.sleep(wait)
+            started = time.monotonic()
+            info = self.request("/System/Info/Public", timeout=10)
+            return info, round((time.monotonic() - started) * 1000)
+
+        try:
+            info, elapsed = timed_request()
+        except urllib.error.HTTPError as exc:
+            if exc.code != 401:
+                raise
+            self.login()
+            info, elapsed = timed_request()
+        if not isinstance(info, dict) or not info.get("Id"):
+            raise ValueError("服务器信息无效")
+        return info, elapsed
+
+    def ensure_account(self, validate=False):
+        if not self.token or not self.uid:
+            self.login()
+            return
+        if validate:
+            try:
+                self.request("/Users/" + self.uid)
+            except urllib.error.HTTPError as exc:
+                if exc.code != 401:
+                    raise
+                self.login()
+                self.request("/Users/" + self.uid)
+
     def items(self, kind, limit=1, start=0):
         return self.request(
             "/Users/" + self.uid + "/Items",
@@ -468,37 +507,59 @@ def failure_state(exc, previous):
     return {"retry_at": now + delay + random.uniform(0, 30), "failures": failures}
 
 
+def server_state(lines):
+    available = [line for line in lines if line["state"] != "error"]
+    if not available:
+        return "error"
+    if len(available) == len(lines) and all(
+        line["state"] == "healthy" for line in available
+    ):
+        return "healthy"
+    if all(line["state"] == "degraded" for line in available):
+        return "degraded"
+    return "slow"
+
+
 def collect(config, old, sid):
+    now = time.time()
     bases = [("主线路", config["primary_url"])] + [
         (line["name"], line["url"]) for line in secondary_lines(config)
     ]
     previous = old.get("line_control", {})
+    tokens = config.setdefault("tokens", {})
+    details_due = (
+        (old.get("refresh_stats") and now >= old.get("stats_retry_at", 0))
+        or now - old.get("details_at", 0) >= DETAIL_INTERVAL
+        or (now >= old.get("stats_retry_at", 0)
+            and old.get("stats", {}).get("day") != str(datetime.now(CST).date()))
+    )
 
     def check(pair):
         label, base = pair
         control = previous.get(base, {})
-        if control.get("auth_failed") or control.get("retry_at", 0) > time.time():
+        if control.get("auth_failed") or control.get("retry_at", 0) > now:
             prior = control.get(
                 "line", {"label": label, "state": "error", "error": "等待重试"}
             )
             return {**prior, "label": label}, None, None, control
-        t = time.monotonic()
         try:
             client = Client(base, config, sid)
-            info = client.probe()
-            elapsed = round((time.monotonic() - t) * 1000)
-            config.setdefault("tokens", {})[base] = {
-                "token": client.token,
-                "uid": client.uid,
-                "client_name": getattr(client, "client_name", "EmbyLens"),
-                "user_agent": (
-                    client.headers["User-Agent"]
-                    if hasattr(client, "headers")
-                    else config.get("user_agent", "EmbyLens/0.1.0")
-                ),
-            }
+            info, elapsed = client.response()
+            if client.token and client.token != tokens.get(base, {}).get("token"):
+                tokens[base] = {
+                    "token": client.token,
+                    "uid": client.uid,
+                    "client_name": getattr(client, "client_name", "EmbyLens"),
+                    "user_agent": client.headers["User-Agent"],
+                    "checked_at": now,
+                }
+            state = (
+                "healthy" if elapsed <= FAST_GREEN_MS
+                else "slow" if elapsed <= FAST_AMBER_MS
+                else "degraded"
+            )
             return (
-                {"label": label, "state": "healthy", "delay_ms": elapsed},
+                {"label": label, "state": state, "delay_ms": elapsed},
                 client,
                 info,
                 {},
@@ -518,15 +579,46 @@ def collect(config, old, sid):
         **old,
         "lines": lines,
         "line_control": {base: checks[i][3] for i, (_, base) in enumerate(bases)},
-        "checked_at": time.time(),
-        "next_check_at": (int(time.time() // 300) + 1) * 300,
-        "state": (
-            "healthy" if len(clients) == len(bases) else "slow" if clients else "error"
-        ),
+        "checked_at": now,
+        "next_check_at": (int(now // FAST_INTERVAL) + 1) * FAST_INTERVAL,
+        "state": server_state(lines),
     }
     result.pop("error", None)
-    if clients:
+    if clients and details_due:
+        result["details_at"] = now
+        for index, ((label, base), (_, client, _, control)) in enumerate(
+            zip(bases, checks)
+        ):
+            if not client:
+                continue
+            cached = tokens.get(base, {})
+            account_due = now - cached.get("checked_at", 0) >= ACCOUNT_INTERVAL
+            try:
+                client.ensure_account(validate=account_due)
+                tokens[base] = {
+                    "token": client.token,
+                    "uid": client.uid,
+                    "client_name": getattr(client, "client_name", "EmbyLens"),
+                    "user_agent": client.headers["User-Agent"],
+                    "checked_at": now if account_due else cached.get("checked_at", now),
+                }
+            except Exception as exc:
+                lines[index] = {"label": label, "state": "error", "error": error_label(exc)}
+                failed = {**failure_state(exc, control), "line": lines[index]}
+                result["line_control"][base] = failed
+                if failed.get("auth_failed"):
+                    tokens.pop(base, None)
+        clients = [
+            (client, info) for index, (line, client, info, _) in enumerate(checks)
+            if client and lines[index]["state"] != "error"
+        ]
+        result["state"] = server_state(lines)
+    if clients and details_due:
         client, info = clients[0]
+        active_base = next(
+            base for (_, base), (_, checked_client, _, _) in zip(bases, checks)
+            if checked_client is client
+        )
         result["name"] = info.get("ServerName") or old.get("name") or "Emby"
         result["version"] = info.get("Version")
         result["server_id"] = info.get("Id")
@@ -550,14 +642,18 @@ def collect(config, old, sid):
                 result.pop("playback_error", None)
             except Exception as exc:
                 result["playback_error"] = error_label(exc)
-        due = (
-            old.get("refresh_stats")
-            or time.time() - old.get("stats_at", 0) > 3600
-            or old.get("stats", {}).get("day") != str(datetime.now(CST).date())
-        )
-        if due and time.time() >= old.get("stats_retry_at", 0):
+        if now >= old.get("stats_retry_at", 0):
             try:
-                result["stats"] = client.stats()
+                try:
+                    result["stats"] = client.stats()
+                except urllib.error.HTTPError as exc:
+                    if exc.code != 401:
+                        raise
+                    client.login()
+                    result["stats"] = client.stats()
+                    tokens[active_base].update(
+                        token=client.token, uid=client.uid, checked_at=time.time()
+                    )
                 result["stats_at"] = time.time()
                 result.pop("stats_error", None)
                 result.pop("refresh_stats", None)

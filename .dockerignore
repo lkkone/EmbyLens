@@ -2,7 +2,6 @@
 .env
 .git
 frontend/node_modules
-frontend/dist
 server/web
 **/__pycache__
 

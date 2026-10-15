@@ -381,7 +381,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/healthz" and method == "GET":
             with connect() as db:
                 db.execute("SELECT 1").fetchone()
-            return self.response(200, {"status": "ok", "version": "0.1.0"})
+            return self.response(200, {"status": "ok", "version": "0.1.1"})
         if not path.startswith("/api/") and method == "GET":
             assets = {
                 "/": "index.html",

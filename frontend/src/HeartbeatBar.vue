@@ -6,8 +6,8 @@ const props = defineProps({
 });
 const label = {
   healthy: "正常",
-  slow: "部分线路异常",
-  degraded: "线路异常",
+  slow: "响应偏慢或部分线路异常",
+  degraded: "响应过慢",
   error: "全部线路不可用",
   unknown: "在线，尚无有效延迟",
   direct: "在线，直连模式",

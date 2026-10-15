@@ -45,8 +45,13 @@ class KeepaliveTests(unittest.TestCase):
             def __init__(self, *args):
                 pass
 
-            def probe(self):
-                return {"Id": "server", "ServerName": "test"}
+            headers = {"User-Agent": "test"}
+
+            def response(self):
+                return {"Id": "server", "ServerName": "test"}, 400
+
+            def ensure_account(self, validate=False):
+                pass
 
             def stats(self):
                 raise TimeoutError()
@@ -68,8 +73,13 @@ class KeepaliveTests(unittest.TestCase):
             def __init__(self, *args):
                 pass
 
-            def probe(self):
-                return {"Id": "server", "ServerName": "test"}
+            headers = {"User-Agent": "test"}
+
+            def response(self):
+                return {"Id": "server", "ServerName": "test"}, 400
+
+            def ensure_account(self, validate=False):
+                pass
 
             def stats(self):
                 raise urllib.error.HTTPError(
@@ -151,8 +161,13 @@ class KeepaliveTests(unittest.TestCase):
             def __init__(self, *args):
                 pass
 
-            def probe(self):
-                return {"Id": "server", "ServerName": "test"}
+            headers = {"User-Agent": "test"}
+
+            def response(self):
+                return {"Id": "server", "ServerName": "test"}, 400
+
+            def ensure_account(self, validate=False):
+                pass
 
             def last_played(self):
                 calls.append(1)

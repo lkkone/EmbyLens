@@ -442,10 +442,15 @@ class CollectionTests(unittest.TestCase):
                 self.token = "private-token"
                 self.uid = "private-user"
 
-            def probe(self):
+            def response(self):
                 if self.base == "https://a":
                     raise TimeoutError()
-                return {"Id": "same", "ServerName": "Actual Emby", "Version": "1"}
+                return {"Id": "same", "ServerName": "Actual Emby", "Version": "1"}, 400
+
+            headers = {"User-Agent": "test"}
+
+            def ensure_account(self, validate=False):
+                pass
 
             def stats(self):
                 return {"movies": 42, "day": str(datetime.now(emby.CST).date())}
@@ -469,6 +474,94 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual(result["stats"]["movies"], 42)
         self.assertEqual(result["state"], "slow")
         self.assertNotIn("private-token", json.dumps(result))
+
+    def test_fast_response_classification_skips_hourly_and_daily_queries(self):
+        calls = []
+
+        class Client:
+            token, uid = "cached-token", "cached-user"
+            client_name = "test"
+            headers = {"User-Agent": "test"}
+
+            def __init__(self, base, *args):
+                self.base = base
+
+            def response(self):
+                calls.append((self.base, "response"))
+                ms = {"https://green": 2000, "https://amber": 2001,
+                      "https://red": 4001}[self.base]
+                return {"Id": "same"}, ms
+
+            def ensure_account(self, validate=False):
+                calls.append((self.base, "account"))
+
+            def stats(self):
+                calls.append((self.base, "stats"))
+
+        now = 100000
+        config = {
+            "primary_url": "https://green",
+            "secondary_lines": [
+                {"name": "黄", "url": "https://amber"},
+                {"name": "红", "url": "https://red"},
+            ],
+            "tokens": {base: {"token": "cached-token", "checked_at": now}
+                       for base in ("https://green", "https://amber", "https://red")},
+        }
+        old = {"details_at": now, "stats": {"day": str(datetime.now(emby.CST).date())}}
+        with patch.object(emby, "Client", Client), patch.object(
+            emby.time, "time", return_value=now
+        ):
+            result = emby.collect(config, old, "test")
+        self.assertEqual([line["state"] for line in result["lines"]],
+                         ["healthy", "slow", "degraded"])
+        self.assertEqual(result["state"], "slow")
+        self.assertEqual(result["next_check_at"], 100200)
+        self.assertEqual(len(calls), 3)
+        self.assertTrue(all(kind == "response" for _, kind in calls))
+
+    def test_hourly_details_and_daily_account_validation(self):
+        calls = []
+
+        class Client:
+            token, uid = "cached-token", "cached-user"
+            client_name = "test"
+            headers = {"User-Agent": "test"}
+
+            def __init__(self, *args):
+                pass
+
+            def response(self):
+                calls.append("response")
+                return {"Id": "server", "ServerName": "Hourly", "Version": "2"}, 300
+
+            def ensure_account(self, validate=False):
+                calls.append(("account", validate))
+
+            def stats(self):
+                calls.append("stats")
+                return {"movies": 42, "day": str(datetime.now(emby.CST).date())}
+
+        now = 100000
+        config = {"primary_url": "https://main", "tokens": {
+            "https://main": {"token": "cached-token", "checked_at": now - 100}
+        }}
+        old = {"details_at": now - 3600, "stats": {
+            "day": str(datetime.now(emby.CST).date())}}
+        with patch.object(emby, "Client", Client), patch.object(
+            emby.time, "time", return_value=now
+        ):
+            result = emby.collect(config, old, "test")
+        self.assertEqual(calls, ["response", ("account", False), "stats"])
+        self.assertEqual(result["name"], "Hourly")
+        self.assertEqual(result["version"], "2")
+        self.assertEqual(result["stats"]["movies"], 42)
+        calls.clear()
+        with patch.object(emby, "Client", Client), patch.object(
+            emby.time, "time", return_value=now + 86400
+        ):
+            emby.collect(config, result, "test")
+        self.assertIn(("account", True), calls)
 
 
 if __name__ == "__main__":

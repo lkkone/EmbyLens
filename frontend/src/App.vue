@@ -105,7 +105,8 @@ const blank = () => ({
 const form = ref(blank());
 const labels = {
   healthy: "正常",
-  slow: "部分线路异常",
+  slow: "响应偏慢或部分线路异常",
+  degraded: "响应过慢",
   error: "异常",
   pending: "等待采集",
   offline: "采集已中断",
@@ -124,7 +125,7 @@ const active = computed(() =>
 );
 const faviconBadge = createFaviconBadge();
 watch(
-  () => servers.value.filter((s) => ["slow", "error", "offline"].includes(s.state)).length,
+  () => servers.value.filter((s) => ["slow", "degraded", "error", "offline"].includes(s.state)).length,
   (count) => faviconBadge.update(count),
   { immediate: true },
 );
@@ -136,7 +137,7 @@ const overall = computed(() => {
   return n
     ? {
         state: servers.value.every((s) =>
-          ["error", "offline"].includes(s.state),
+          ["degraded", "error", "offline"].includes(s.state),
         )
           ? "error"
           : "slow",
@@ -146,6 +147,12 @@ const overall = computed(() => {
     : { state: "healthy", text: "所有 Emby 服务器运行正常", symbol: "✓" };
 });
 const count = (v) => (v == null ? "—" : Number(v).toLocaleString("zh-CN"));
+const lineResponse = (line) =>
+  line.delay_ms != null ? `响应 ${line.delay_ms} ms` : line.error || "等待检测";
+const lineDescription = (line) =>
+  line.delay_ms == null
+    ? line.error || "等待检测"
+    : `Emby ${line.state === "healthy" ? "响应正常" : line.state === "slow" ? "响应偏慢" : "响应过慢"} · ${line.delay_ms} ms`;
 const time = (v) =>
   v
     ? new Date(v * 1000).toLocaleString("zh-CN", {
@@ -403,13 +410,9 @@ onUnmounted(() => {
                   :key="index"
                   class="line-status"
                   :class="l.state"
-                  :title="l.error || l.delay_ms + ' ms'"
+                  :title="lineDescription(l)"
                   ><i class="status-dot"></i>{{ l.label
-                  }}<small>{{
-                    l.state === "healthy"
-                      ? `${l.delay_ms} ms`
-                      : l.error || "等待采集"
-                  }}</small></span
+                  }}<small>{{ lineResponse(l) }}</small></span
                 >
               </div>
               <div class="emby-stats">
@@ -505,7 +508,7 @@ onUnmounted(() => {
           :class="l.state"
         >
           <span class="status-dot"></span> {{ l.label }} ·
-          {{ l.state === "healthy" ? `正常 · ${l.delay_ms} ms` : l.error }}
+          {{ lineDescription(l) }}
         </div>
       </div>
       <dl class="facts">
