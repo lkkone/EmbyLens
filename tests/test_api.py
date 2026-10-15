@@ -46,6 +46,30 @@ class APITests(unittest.TestCase):
         conn.close()
         return status, value, head
 
+    def test_old_successful_slow_responses_are_not_shown_red(self):
+        sid = "legacy-slow-response"
+        now = time.time()
+        with app.connect() as db:
+            db.execute(
+                "INSERT INTO servers VALUES(?,?,?,?,?,?,?)",
+                (
+                    sid, "Test", "", json.dumps({"primary_url": "https://example.com"}),
+                    json.dumps({
+                        "name": "Test", "state": "degraded", "checked_at": now,
+                        "lines": [{"label": "CF", "state": "degraded", "delay_ms": 5712}],
+                    }), now, 1,
+                ),
+            )
+            db.execute(
+                "INSERT INTO samples VALUES(?,?,?,?)", (sid, now, "degraded", 5712)
+            )
+            row = db.execute("SELECT * FROM servers WHERE id=?", (sid,)).fetchone()
+            result = app.serialize(db, row, now)
+            db.execute("DELETE FROM servers WHERE id=?", (sid,))
+        self.assertEqual(result["state"], "slow")
+        self.assertEqual(result["lines"][0]["state"], "slow")
+        self.assertEqual(result["history"][0]["state"], "slow")
+
     def test_legacy_route_toggle_keeps_existing_statistics(self):
         _, _, headers = self.req(
             "/api/login", "POST", {"username": "test", "password": "test-only-password"}

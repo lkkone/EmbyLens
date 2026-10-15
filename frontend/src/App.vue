@@ -106,7 +106,7 @@ const form = ref(blank());
 const labels = {
   healthy: "正常",
   slow: "响应偏慢或部分线路异常",
-  degraded: "响应过慢",
+  degraded: "响应偏慢",
   error: "异常",
   pending: "等待采集",
   offline: "采集已中断",
@@ -137,7 +137,7 @@ const overall = computed(() => {
   return n
     ? {
         state: servers.value.every((s) =>
-          ["degraded", "error", "offline"].includes(s.state),
+          ["error", "offline"].includes(s.state),
         )
           ? "error"
           : "slow",
@@ -152,7 +152,7 @@ const lineResponse = (line) =>
 const lineDescription = (line) =>
   line.delay_ms == null
     ? line.error || "等待检测"
-    : `Emby ${line.state === "healthy" ? "响应正常" : line.state === "slow" ? "响应偏慢" : "响应过慢"} · ${line.delay_ms} ms`;
+    : `Emby ${line.state === "healthy" ? "响应正常" : "响应偏慢"} · ${line.delay_ms} ms`;
 const time = (v) =>
   v
     ? new Date(v * 1000).toLocaleString("zh-CN", {

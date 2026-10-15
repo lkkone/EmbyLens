@@ -18,7 +18,6 @@ FAST_INTERVAL = 300
 DETAIL_INTERVAL = 3600
 ACCOUNT_INTERVAL = 86400
 FAST_GREEN_MS = 2000
-FAST_AMBER_MS = 4000
 
 
 def secondary_lines(config):
@@ -515,8 +514,6 @@ def server_state(lines):
         line["state"] == "healthy" for line in available
     ):
         return "healthy"
-    if all(line["state"] == "degraded" for line in available):
-        return "degraded"
     return "slow"
 
 
@@ -553,11 +550,7 @@ def collect(config, old, sid):
                     "user_agent": client.headers["User-Agent"],
                     "checked_at": now,
                 }
-            state = (
-                "healthy" if elapsed <= FAST_GREEN_MS
-                else "slow" if elapsed <= FAST_AMBER_MS
-                else "degraded"
-            )
+            state = "healthy" if elapsed <= FAST_GREEN_MS else "slow"
             return (
                 {"label": label, "state": state, "delay_ms": elapsed},
                 client,

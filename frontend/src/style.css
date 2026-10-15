@@ -97,11 +97,11 @@ small,
 .healthy {
   --state-color: var(--color-green);
 }
-.slow {
+.slow,
+.degraded {
   --state-color: var(--color-amber);
 }
-.error,
-.degraded {
+.error {
   --state-color: var(--color-red);
 }
 .offline,
@@ -204,8 +204,7 @@ small,
 .device-name:hover {
   color: var(--color-blue);
 }
-.error .device-name,
-.degraded .device-name {
+.error .device-name {
   color: var(--color-red);
 }
 .device-tags {

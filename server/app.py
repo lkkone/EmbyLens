@@ -146,6 +146,13 @@ def keepalive_status(config, snapshot, now, unavailable=False):
 
 def serialize(db, row, now, private=False):
     snapshot = json.loads(row["snapshot"])
+    # Older samples marked a successful but >4 s response red. Red now means
+    # an unavailable request; reinterpret those saved response-only states.
+    for line in snapshot.get("lines", []):
+        if line.get("state") == "degraded" and line.get("delay_ms") is not None:
+            line["state"] = "slow"
+    if snapshot.get("state") == "degraded":
+        snapshot["state"] = "slow"
     state = snapshot.get("state", "pending")
     if (
         state == "slow"
@@ -164,7 +171,10 @@ def serialize(db, row, now, private=False):
         {
             "at": r["at"],
             "sample_at": r["at"],
-            "state": r["state"],
+            "state": (
+                "slow" if r["state"] == "degraded" and r["delay"] is not None
+                else r["state"]
+            ),
             "delay_ms": r["delay"],
         }
         for r in reversed(rows)
@@ -381,7 +391,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/healthz" and method == "GET":
             with connect() as db:
                 db.execute("SELECT 1").fetchone()
-            return self.response(200, {"status": "ok", "version": "0.1.1"})
+            return self.response(200, {"status": "ok", "version": "0.1.2"})
         if not path.startswith("/api/") and method == "GET":
             assets = {
                 "/": "index.html",

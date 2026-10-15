@@ -489,7 +489,7 @@ class CollectionTests(unittest.TestCase):
             def response(self):
                 calls.append((self.base, "response"))
                 ms = {"https://green": 2000, "https://amber": 2001,
-                      "https://red": 4001}[self.base]
+                      "https://very-slow": 5712}[self.base]
                 return {"Id": "same"}, ms
 
             def ensure_account(self, validate=False):
@@ -503,10 +503,10 @@ class CollectionTests(unittest.TestCase):
             "primary_url": "https://green",
             "secondary_lines": [
                 {"name": "黄", "url": "https://amber"},
-                {"name": "红", "url": "https://red"},
+                {"name": "较慢", "url": "https://very-slow"},
             ],
             "tokens": {base: {"token": "cached-token", "checked_at": now}
-                       for base in ("https://green", "https://amber", "https://red")},
+                       for base in ("https://green", "https://amber", "https://very-slow")},
         }
         old = {"details_at": now, "stats": {"day": str(datetime.now(emby.CST).date())}}
         with patch.object(emby, "Client", Client), patch.object(
@@ -514,7 +514,7 @@ class CollectionTests(unittest.TestCase):
         ):
             result = emby.collect(config, old, "test")
         self.assertEqual([line["state"] for line in result["lines"]],
-                         ["healthy", "slow", "degraded"])
+                         ["healthy", "slow", "slow"])
         self.assertEqual(result["state"], "slow")
         self.assertEqual(result["next_check_at"], 100200)
         self.assertEqual(len(calls), 3)
